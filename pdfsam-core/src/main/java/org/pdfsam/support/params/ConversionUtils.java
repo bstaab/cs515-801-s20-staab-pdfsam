@@ -21,8 +21,10 @@ package org.pdfsam.support.params;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
 import static org.sejda.conversion.AdapterUtils.splitAndTrim;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Set;
+import java.util.stream.IntStream;
 
 import org.pdfsam.i18n.DefaultI18nContext;
 import org.sejda.commons.collection.NullSafeSet;
@@ -40,6 +42,137 @@ public final class ConversionUtils {
     }
 
     /**
+     * @return the post-processed {@link PageRange} set for the given string, an empty set otherwise.
+     * 		   NOTE: overlapping, duplicate and intersecting will be converted into a valid union 
+     *               of all page descriptions
+     */
+    public static Set<PageRange> postProcessPageRangeSet(Set<PageRange> ranges) {
+        if (ranges.isEmpty()) {
+            return ranges;
+        }
+
+        // Storage for union of page numbers
+        ArrayList<Integer> pageNumberList = new ArrayList<Integer>();
+        
+        // Storage for optimized page ranges
+        Set<PageRange> pageRangeSet = new NullSafeSet<>();
+
+        // Get a list of all pages with bound ranges (end != UNBOUNDED_END)
+        // NOTE: This will automatically handle intersections by dropping duplicate entries
+        for (PageRange range : ranges) {
+        	// Skip unbound ranges
+            if (!range.isUnbounded()) {
+            	// Convert range to list
+            	for (int pageNum : IntStream.rangeClosed(range.getStart(), range.getEnd()).toArray()) {
+            		// If page number is not in union, add it
+            		if (!pageNumberList.contains(pageNum)) {
+            			pageNumberList.add(pageNum);
+            		}
+            	}
+            }
+        }
+        
+        // Sort the list in ascending order
+        Collections.sort(pageNumberList);
+        
+        // Find the lowest starting page number for all unbounded ranges
+        int unbounded_start = Integer.MAX_VALUE;
+        int unbounded_end = Integer.MAX_VALUE;
+        for (PageRange range : ranges) {
+        	// Only process unbound ranges
+            if (range.isUnbounded()) {
+            	// Update variabales if this is the lowest value
+            	if (range.getStart() < unbounded_start) {
+            		unbounded_start = range.getStart(); 
+            		unbounded_end  = range.getEnd();
+            	}
+            }
+        }
+        
+        // Update the union of pages if an unbound range was found 
+        if (unbounded_start < Integer.MAX_VALUE) {
+	        int pos = -1;
+	        // Get the index of thee first page number >= unbounded_start
+	        // NOTE: Requires sorted list in ascending order
+	        for (int pageNum : pageNumberList) {
+	        	if (pageNum >= unbounded_start) {
+	        		pos = pageNumberList.indexOf(pageNum);
+	        		break;
+	        	}
+	        }
+	        
+	        // Remove all page numbers >= unbounded_start
+	        if (pos >= 0) {
+	        	int pageNumberListSize = pageNumberList.size();
+	        	pageNumberList.subList(pos,pageNumberListSize).clear();
+	        }
+	        
+	        // Add the unbounded range to the end of the page list
+	        pageNumberList.add(unbounded_start);
+	        pageNumberList.add(unbounded_end);
+        }
+        
+        // Build new pageRanges
+        boolean newRange = true;
+        int start_page = 0;
+        int last_page = 0;
+        int end_page = 0;
+        int pageNumberListSize = pageNumberList.size();
+        
+        PageRange range;
+        for (int pageIdx = 0; pageIdx < pageNumberListSize; pageIdx++)
+        {
+        	// Get page number from list index
+        	int currentPageNum = pageNumberList.get(pageIdx);
+        	
+        	// Start of a new range
+        	if (newRange) {
+        		newRange = false;
+        		start_page = currentPageNum;
+        		last_page = currentPageNum;
+        		end_page = currentPageNum;
+
+        		// Check to see if this is the last item in the list 
+        		if (pageIdx == pageNumberListSize -1) {
+            		range = new PageRange(start_page, end_page);
+            		pageRangeSet.add(range);
+        		}
+        	}
+        	// Handle unbounded_end value.
+        	// This should be the last value in the list
+        	else if (currentPageNum == unbounded_end) {
+        		end_page = currentPageNum;
+        		range = new PageRange(start_page);
+        		pageRangeSet.add(range);
+        	}
+        	// Check for a gap in the page numbers
+        	else if (currentPageNum != (last_page + 1)) {
+        		end_page = last_page;
+        		range = new PageRange(start_page, end_page);
+        		pageRangeSet.add(range);
+        		last_page = currentPageNum;
+        		start_page = currentPageNum;
+        	}
+        	// Check for last item in the list
+        	else if (pageIdx == pageNumberListSize -1) {
+        		end_page = currentPageNum;
+        		range = new PageRange(start_page, end_page);
+        		pageRangeSet.add(range);
+        		last_page = currentPageNum;
+        		start_page = currentPageNum;
+        	}
+        	else {
+        		last_page = currentPageNum;
+        	}
+        	
+        }
+        
+        // Return new Page Range set
+        return pageRangeSet;
+    }
+    
+    
+    /**
      * @return the {@link PageRange} set for the given string, an empty set otherwise.
      */
     public static Set<PageRange> toPageRangeSet(String selection) throws ConversionException {
@@ -54,7 +187,8 @@ public final class ConversionUtils {
                 }
                 pageRangeSet.add(range);
             }
-            return pageRangeSet;
+            // Post-process Page Range results befor returning
+            return postProcessPageRangeSet(pageRangeSet);
         }
         return Collections.emptySet();
     }
