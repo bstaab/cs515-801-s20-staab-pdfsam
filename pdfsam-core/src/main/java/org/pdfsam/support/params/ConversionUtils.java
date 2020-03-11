@@ -188,7 +188,9 @@ public final class ConversionUtils {
                 pageRangeSet.add(range);
             }
             // Post-process Page Range results befor returning
-            return postProcessPageRangeSet(pageRangeSet);
+            //return postProcessPageRangeSet(pageRangeSet);
+            // Return unprocessed RangeSet
+            return pageRangeSet;
         }
         return Collections.emptySet();
     }

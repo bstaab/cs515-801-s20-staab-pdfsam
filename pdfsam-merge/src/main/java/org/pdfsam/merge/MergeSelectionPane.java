@@ -37,6 +37,17 @@ import org.sejda.model.input.PdfMergeInput;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+// Start - Imports needed for change request ps#2
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import org.sejda.model.pdf.page.PageRange;
+import org.pdfsam.ui.selection.multiple.SelectionTableRowData;
+import org.sejda.model.input.PdfFileSource;
+import javafx.collections.ObservableList;
+// End - Imports needed for change request ps#2
+
 /**
  * Selection panel for the merge module.
  * 
@@ -57,9 +68,44 @@ public class MergeSelectionPane extends MultipleSelectionPane
     @Override
     public void apply(MergeParametersBuilder builder, Consumer<String> onError) {
         try {
-            table().getItems().stream().filter(s -> !Objects.equals("0", trim(s.pageSelection.get())))
-                    .map(i -> new PdfMergeInput(i.descriptor().toPdfFileSource(), i.toPageRangeSet()))
-                    .forEach(builder::addInput);
+        	// For each entry in the PDF file list, a 'Page range' can optionally be provided to indicate which
+        	// pages to include in the merged document.  The original implementation converted the page ranges 
+        	// into a set of PageRange objects and associated them with the specific file.  To support intersecting
+        	// ranges, the following logic adds a separate entry for each sourc_file & PageRange combination.
+        	
+        	// Storage for the table items 
+        	ObservableList<SelectionTableRowData> tableItems = table().getItems();
+        	
+        	// Storage for PdfMergeInputs
+        	List<PdfMergeInput> pdfMergeInputs = new ArrayList<>();
+        	
+            // Iterate over each item in the table 
+            for (SelectionTableRowData item : tableItems) {
+                // Remove leading and trailing spaces, then process if anything is left
+                if(!Objects.equals("0", trim(item.pageSelection.get()))) {
+                    // Create a PdfFileSource that contains the filename/path for this 'item' 
+            		PdfFileSource source = item.descriptor().toPdfFileSource();
+                	
+            		// Convert the range value(s to a set of PageRange objects
+                	Set<PageRange> pageRangeSet = item.toPageRangeSet();
+            		
+                	// Process all PageRange objects in the set 
+                	for (PageRange pageRange : pageRangeSet) {
+                		// Need to create a PageRange set because that's what the PdfMergeInput constructor requires
+                		Set<PageRange> pageSelection = new HashSet<>();
+                                                
+                        // Add this pageRange to the set 
+                        pageSelection.add(pageRange);
+                                               
+                        // Create a new PdfMergeInput object and add to the list of PdfMergeInputs
+                        pdfMergeInputs.add(new PdfMergeInput(source, pageSelection));
+                    }
+                }
+            }
+
+            // For each PdfMergeInput in the list, add it to the builder
+            pdfMergeInputs.stream().forEach(builder::addInput);
+
             if (!builder.hasInput()) {
                 onError.accept(DefaultI18nContext.getInstance().i18n("No PDF document has been selected"));
             }
