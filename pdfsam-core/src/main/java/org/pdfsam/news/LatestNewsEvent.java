@@ -30,12 +30,24 @@ import org.sejda.commons.util.RequireUtils;
  */
 public class LatestNewsEvent {
 
-    public final List<NewsData> latestNews;
-    public final boolean isUpToDate;
+    private final List<NewsData> latestNews;
+    private final boolean isUpToDate;
 
     public LatestNewsEvent(List<NewsData> latestNews, boolean isUpToDate) {
         RequireUtils.requireNotNullArg(latestNews, "Latest news cannot be null");
         this.latestNews = Collections.unmodifiableList(latestNews);
         this.isUpToDate = isUpToDate;
+    }
+
+    public boolean getIsUpToDate() {
+        return this.isUpToDate;
+    }
+
+    public int getLatestNewsSize(){
+        return latestNews.size();
+    }
+
+    public NewsData getLatestNewsItem(int index){
+        return latestNews.get(index);
     }
 }

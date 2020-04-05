@@ -79,9 +79,9 @@ public class LatestNewsControllerTest {
         ArgumentCaptor<LatestNewsEvent> captor = ArgumentCaptor.forClass(LatestNewsEvent.class);
         verify(listener, timeout(1000).times(1)).onEvent(captor.capture());
         verify(listenerImportantNews, never()).onEvent(any());
-        assertTrue(captor.getValue().isUpToDate);
-        assertEquals(1, captor.getValue().latestNews.size());
-        assertEquals(data, captor.getValue().latestNews.get(0));
+        assertTrue(captor.getValue().getIsUpToDate());
+        assertEquals(1, captor.getValue().getLatestNewsSize());
+        assertEquals(data, captor.getValue().getLatestNewsItem(0));
     }
 
     @Test
